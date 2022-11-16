@@ -1,10 +1,11 @@
 from typing import List
 
-from fastapi import APIRouter, FastAPI, Request, HTTPException, Depends
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi import APIRouter, Depends, FastAPI, Request
 from pydantic import BaseModel
 
-from service.api.exceptions import UserNotFoundError
+from service.api.exceptions import ModelNotFoundError, UserNotFoundError
+from service.auth.authorization import JWTBearer
+from service.config import config
 from service.log import app_logger
 
 
@@ -12,33 +13,9 @@ class RecoResponse(BaseModel):
     user_id: int
     items: List[int]
 
-TOKEN_ACCESS = "12kuhGUh7yG76g"
-class JWTBearer(HTTPBearer):
-    def __init__(self, auto_error: bool = True):
-        super(JWTBearer, self).__init__(auto_error=auto_error)
 
-    async def __call__(self, request: Request):
-        credentials: HTTPAuthorizationCredentials = await super(JWTBearer,
-                                                                self).__call__(
-            request)
-        if credentials:
-            if not credentials.scheme == "Bearer":
-                raise HTTPException(status_code=403,
-                                    detail="Invalid authentication scheme.")
-            if not self.verify_jwt(credentials.credentials):
-                raise HTTPException(status_code=403,
-                                    detail="Invalid token or expired token.")
-            return credentials.credentials
-        else:
-            raise HTTPException(status_code=403,
-                                detail="Invalid authorization code.")
-
-    def verify_jwt(self, token: str) -> bool:
-        isTokenValid: bool = False
-
-        if token == TOKEN_ACCESS:
-            isTokenValid = True
-        return isTokenValid
+class Message(BaseModel):
+    message: str
 
 
 router = APIRouter()
@@ -58,6 +35,11 @@ async def health() -> str:
     tags=["Recommendations"],
     response_model=RecoResponse,
     dependencies=[Depends(JWTBearer())],
+    responses={
+        200: {"response": RecoResponse},
+        403: {"response": Message},
+        404: {"response": Message},
+    },
 )
 async def get_reco(
     request: Request,
@@ -70,6 +52,9 @@ async def get_reco(
 
     if user_id > 10**9:
         raise UserNotFoundError(error_message=f"User {user_id} not found")
+
+    if model_name not in config.models:
+        raise ModelNotFoundError(error_message=f"Model {model_name} not found")
 
     k_recs = request.app.state.k_recs
     reco = list(range(k_recs))
