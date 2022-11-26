@@ -8,6 +8,7 @@ from service.auth.authorization import JWTBearer
 from service.config import config
 from service.log import app_logger
 
+from models.prerun import popular_reco_df, userknn_reco_df
 
 class RecoResponse(BaseModel):
     user_id: int
@@ -56,8 +57,20 @@ async def get_reco(
     if model_name not in config.models:
         raise ModelNotFoundError(error_message=f"Model {model_name} not found")
 
-    k_recs = request.app.state.k_recs
-    reco = list(range(k_recs))
+    if model_name == 'test_model':
+        k_recs = request.app.state.k_recs
+        reco = list(range(k_recs))
+    elif model_name == 'userknn_model':
+        reco_popular = list(popular_reco_df.item_id)
+        reco = list(userknn_reco_df[userknn_reco_df.user_id == user_id].item_id)
+        i = 0
+        while len(reco) < 10:
+            if reco_popular[i] not in reco:
+                reco.append(reco_popular[i])
+            i += 1
+    elif model_name == 'popular_model':
+        reco = list(popular_reco_df.item_id)
+
     return RecoResponse(user_id=user_id, items=reco)
 
 
