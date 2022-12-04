@@ -3,13 +3,12 @@ from typing import List
 from fastapi import APIRouter, Depends, FastAPI, Request
 from pydantic import BaseModel
 
+from models.config import UserKnn_model
+from models.load_models import POPULAR, USERKNN
 from service.api.exceptions import ModelNotFoundError, UserNotFoundError
 from service.auth.authorization import JWTBearer
 from service.config import config
 from service.log import app_logger
-
-from models.config import UserKnn_model
-from models.load_models import USERKNN, POPULAR
 
 
 class RecoResponse(BaseModel):
