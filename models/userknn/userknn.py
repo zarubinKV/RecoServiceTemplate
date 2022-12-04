@@ -125,3 +125,37 @@ class UserKnn():
         recs['rank'] = recs.groupby('user_id').cumcount() + 1
         return recs[recs['rank'] <= N_recs][
             ['user_id', 'item_id', 'score', 'rank']]
+
+    def predict_online(self, user_id: int, N_recs: int = 10):
+        if not self.is_fitted:
+            raise ValueError("Please call fit before predict")
+
+        mapper = self._generate_recs_mapper(
+            model=self.user_knn,
+            user_mapping=self.users_mapping,
+            user_inv_mapping=self.users_inv_mapping,
+            N=self.N_users
+        )
+
+        if user_id not in self.users_mapping:
+            return []
+
+        sim_users, sims = mapper(user_id)
+        recs = pd.DataFrame({'sim_user_id': sim_users, 'sim': sims})
+        import time
+        st = time.time()
+        recs = recs[~(recs['sim'] >= 1)] \
+            .merge(self.watched,
+                   left_on=['sim_user_id'],
+                   right_on=['user_id'],
+                   how='left') \
+            .explode('item_id') \
+            .sort_values(['sim'], ascending=False) \
+            .drop_duplicates(['item_id'], keep='first') \
+            .merge(self.item_idf, left_on='item_id', right_on='index',
+                   how='left')
+        print(time.time() - st)
+        recs['score'] = recs['sim'] * recs['idf']
+        recs = recs.sort_values('score', ascending=False)
+
+        return list(recs.item_id)[:N_recs]
