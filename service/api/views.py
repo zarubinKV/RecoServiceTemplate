@@ -3,11 +3,11 @@ from typing import List
 from fastapi import APIRouter, Depends, FastAPI, Request
 from pydantic import BaseModel
 
-from models.config import UserKnn_model
+from config.config_models import UserKnn_model_conf
 from models.load_models import POPULAR, USERKNN
 from service.api.exceptions import ModelNotFoundError, UserNotFoundError
 from service.auth.authorization import JWTBearer
-from service.config import config
+from config.config_service import config
 from service.log import app_logger
 
 
@@ -61,21 +61,24 @@ async def get_reco(
         reco = list(range(k_recs))
     elif model_name == 'userknn_model':
         # Online
-        if UserKnn_model.online:
+        if UserKnn_model_conf.online:
             model = USERKNN['model']
-            reco = model.predict_online(user_id, UserKnn_model.N_recs)
+            reco = model.predict_online(user_id, UserKnn_model_conf.N_recs)
         # Offline
         else:
             userknn_reco_df = USERKNN['reco_df']
-            reco = list(
-                userknn_reco_df[userknn_reco_df.user_id == user_id].item_id,
-            )
+            reco = userknn_reco_df[userknn_reco_df.user_id == user_id]
         popular_reco_df = POPULAR['reco_df']
         reco_popular = list(popular_reco_df.item_id)
         i = 0
-        # Model for cold users: Popular()
-        # Model blending (userkNN.item_id union Popular.item_id limit N_recs)
-        while len(reco) < UserKnn_model.N_recs:
+        # Model for cold: Popular()
+        # Model for warm: userkNN.item_id union Popular.item_id limit N_recs
+        # Model for hot: userkNN.item_id blend Popular.item_id
+        if len(reco) == UserKnn_model_conf.N_recs:
+            reco = reco[reco.score > UserKnn_model_conf.blend_threshold]
+
+        reco = list(reco.item_id)
+        while len(reco) < UserKnn_model_conf.N_recs:
             if reco_popular[i] not in reco:
                 reco.append(reco_popular[i])
             i += 1
