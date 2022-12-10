@@ -1,11 +1,10 @@
+import dill
 import pandas as pd
-from implicit.nearest_neighbours import CosineRecommender
-from rectools.dataset import Dataset
+
 from rectools import Columns
-from rectools.models.popular import PopularModel
-from models.userknn.userknn import UserKnn
 from rectools.model_selection import TimeRangeSplit
-from models.config import UserKnn_model, Popular_model
+
+from config.config_models import UserKnn_model_conf, Popular_model_conf
 
 USERKNN = {
     'model_loaded': False,
@@ -18,25 +17,18 @@ POPULAR = {
     'reco_df': None,
 }
 
+interactions = None
 
-def load_data():
-    global train
+train = None
+
+
+def cv_generate():
     global interactions
-    interactions = pd.read_csv(
-        '{0}/interactions.csv'.format(UserKnn_model.dataset_path))
-    users = pd.read_csv('{0}/users.csv'.format(UserKnn_model.dataset_path))
-    items = pd.read_csv('{0}/items.csv'.format(UserKnn_model.dataset_path))
-    # rename columns, convert timestamp
-    interactions.rename(columns={'last_watch_dt': Columns.Datetime,
-                                 'total_dur': Columns.Weight},
-                        inplace=True)
-    interactions['datetime'] = pd.to_datetime(interactions['datetime'])
     # train test split
-    # test = 4 days (startdate_test = lastdate - 12 days)
-    n_folds = 3
-    unit = "D"
-    n_units = 4
-    periods = 2
+    n_folds = UserKnn_model_conf.n_folds
+    unit = UserKnn_model_conf.unit
+    n_units = UserKnn_model_conf.n_units
+    periods = UserKnn_model_conf.periods
     freq = f"{n_units}{unit}"
     last_date = interactions[Columns.Datetime].max().normalize()
     start_date = last_date - pd.Timedelta(n_folds * n_units + 1, unit=unit)
@@ -49,10 +41,22 @@ def load_data():
         filter_cold_items=True,
         filter_cold_users=True,
     )
-    (train_ids, test_ids, fold_info) = cv.split(
-        interactions,
-        collect_fold_stats=True,
-    ).__next__()
+    return cv.split(interactions, collect_fold_stats=True).__next__()
+
+
+def load_data():
+    global train
+    global interactions
+    interactions = pd.read_csv(
+        '{0}/interactions.csv'.format(UserKnn_model_conf.dataset_path))
+    users = pd.read_csv('{0}/users.csv'.format(UserKnn_model_conf.dataset_path))
+    items = pd.read_csv('{0}/items.csv'.format(UserKnn_model_conf.dataset_path))
+    # rename columns, convert timestamp
+    interactions.rename(columns={'last_watch_dt': Columns.Datetime,
+                                 'total_dur': Columns.Weight},
+                        inplace=True)
+    interactions['datetime'] = pd.to_datetime(interactions['datetime'])
+    (train_ids, test_ids, fold_info) = cv_generate()
     train = interactions.loc[train_ids]
 
 
@@ -60,15 +64,12 @@ def load_userknn():
     global USERKNN
     if not USERKNN['model_loaded']:
         USERKNN['model_loaded'] = True
-        if UserKnn_model.online:
-            USERKNN['model'] = UserKnn(model=CosineRecommender(), N_users=50)
-            USERKNN['model'].load_weight(
-                train,
-                UserKnn_model.weight_path,
-            )
+        if UserKnn_model_conf.online:
+            with open(UserKnn_model_conf.weight_path, 'rb') as f:
+                USERKNN['model'] = dill.load(f)
         else:
             USERKNN['reco_df'] = pd.read_csv(
-                UserKnn_model.save_reco_df_path,
+                UserKnn_model_conf.save_reco_df_path,
                 encoding='utf-8',
             )
 
@@ -77,14 +78,16 @@ def load_popular():
     global POPULAR
     if not POPULAR['model_loaded']:
         POPULAR['reco_df'] = pd.read_csv(
-            Popular_model.save_reco_df_path,
+            Popular_model_conf.save_reco_df_path,
             encoding='utf-8',
         )
 
+def main():
+    global interactions
+    global train
+    load_data()
+    load_userknn()
+    load_popular()
+    interactions = train
 
-interactions = None
-train = None
-load_data()
-load_userknn()
-load_popular()
-interactions = train
+
