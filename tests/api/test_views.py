@@ -2,7 +2,7 @@ from http import HTTPStatus
 
 from starlette.testclient import TestClient
 
-from service.config import config
+from config.config_service import config
 from service.settings import ServiceConfig
 
 GET_RECO_PATH = "/reco/{model_name}/{user_id}"
