@@ -1,8 +1,11 @@
 import os
+import subprocess
 import uvicorn
 
 from service.api.app import create_app
 from service.settings import get_config
+
+import models.load_models
 
 config = get_config()
 app = create_app(config)
