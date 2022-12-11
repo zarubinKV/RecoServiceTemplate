@@ -1,15 +1,17 @@
 from http import HTTPStatus
+import yaml
 
 from fastapi import HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from config.config_service import config
+with open('config/config_service.yml') as stream:
+    config = yaml.safe_load(stream)['config']
 
 
 def verify_jwt(token: str) -> bool:
     isTokenValid: bool = False
 
-    if token == config.token:
+    if token == config['token']:
         isTokenValid = True
     return isTokenValid
 
