@@ -3,7 +3,7 @@ from http import HTTPStatus
 from fastapi import HTTPException, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
-from service.config import config
+from config.config_service import config
 
 
 def verify_jwt(token: str) -> bool:
