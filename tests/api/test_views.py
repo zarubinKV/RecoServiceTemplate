@@ -1,11 +1,14 @@
 from http import HTTPStatus
+import yaml
 
 from starlette.testclient import TestClient
 
-from config.config_service import config
 from service.settings import ServiceConfig
 
 GET_RECO_PATH = "/reco/{model_name}/{user_id}"
+
+with open('config/config_service.yml') as stream:
+    config = yaml.safe_load(stream)['config']
 
 
 def test_health(
@@ -14,7 +17,7 @@ def test_health(
     with client:
         response = client.get(
             "/health",
-            headers={"Authorization": f"Bearer {config.token}"},
+            headers={"Authorization": f"Bearer {config['token']}"},
         )
     assert response.status_code == HTTPStatus.OK
 
@@ -28,7 +31,7 @@ def test_get_reco_success(
     with client:
         response = client.get(
             path,
-            headers={"Authorization": f"Bearer {config.token}"},
+            headers={"Authorization": f"Bearer {config['token']}"},
         )
     assert response.status_code == HTTPStatus.OK
     response_json = response.json()
@@ -45,7 +48,7 @@ def test_get_reco_for_unknown_user(
     with client:
         response = client.get(
             path,
-            headers={"Authorization": f"Bearer {config.token}"},
+            headers={"Authorization": f"Bearer {config['token']}"},
         )
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()["errors"][0]["error_key"] == "user_not_found"
@@ -85,7 +88,7 @@ def test_get_reco_with_unknown_model(
     with client:
         response = client.get(
             path,
-            headers={"Authorization": f"Bearer {config.token}"},
+            headers={"Authorization": f"Bearer {config['token']}"},
         )
     assert response.status_code == HTTPStatus.NOT_FOUND
     assert response.json()["errors"][0]["error_key"] == "model_not_found"

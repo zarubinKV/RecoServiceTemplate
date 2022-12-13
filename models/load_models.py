@@ -1,10 +1,15 @@
 import dill
 import pandas as pd
+import joblib
+import yaml
 
 from rectools import Columns
 from rectools.model_selection import TimeRangeSplit
 
-from config.config_models import UserKnn_model_conf, Popular_model_conf
+from models.ann import Ann
+
+with open('config/config_models.yml') as stream:
+    config = yaml.safe_load(stream)
 
 USERKNN = {
     'model_loaded': False,
@@ -17,6 +22,28 @@ POPULAR = {
     'reco_df': None,
 }
 
+ALS = {
+    'model_loaded': False,
+    'reco_df': None,
+}
+
+SVD = {
+    'model_loaded': False,
+    'reco_df': None,
+}
+
+LIGHTFM = {
+    'model_loaded': False,
+    'reco_df': None,
+}
+
+ANN = {
+    'model_loaded': False,
+    'model': None,
+    'label': None,
+    'distance': None,
+}
+
 interactions = None
 
 train = None
@@ -25,10 +52,10 @@ train = None
 def cv_generate():
     global interactions
     # train test split
-    n_folds = UserKnn_model_conf.n_folds
-    unit = UserKnn_model_conf.unit
-    n_units = UserKnn_model_conf.n_units
-    periods = UserKnn_model_conf.periods
+    n_folds = config['UserKnn_model_conf']['n_folds']
+    unit = config['UserKnn_model_conf']['unit']
+    n_units = config['UserKnn_model_conf']['n_units']
+    periods = config['UserKnn_model_conf']['periods']
     freq = f"{n_units}{unit}"
     last_date = interactions[Columns.Datetime].max().normalize()
     start_date = last_date - pd.Timedelta(n_folds * n_units + 1, unit=unit)
@@ -48,9 +75,12 @@ def load_data():
     global train
     global interactions
     interactions = pd.read_csv(
-        '{0}/interactions.csv'.format(UserKnn_model_conf.dataset_path))
-    users = pd.read_csv('{0}/users.csv'.format(UserKnn_model_conf.dataset_path))
-    items = pd.read_csv('{0}/items.csv'.format(UserKnn_model_conf.dataset_path))
+        '{0}/interactions.csv'.format(
+            config['UserKnn_model_conf']['dataset_path']
+        )
+    )
+    # users = pd.read_csv('{0}/users.csv'.format(config['UserKnn_model_conf']['dataset_path']))
+    # items = pd.read_csv('{0}/items.csv'.format(config['UserKnn_model_conf']['dataset_path']))
     # rename columns, convert timestamp
     interactions.rename(columns={'last_watch_dt': Columns.Datetime,
                                  'total_dur': Columns.Weight},
@@ -64,12 +94,12 @@ def load_userknn():
     global USERKNN
     if not USERKNN['model_loaded']:
         USERKNN['model_loaded'] = True
-        if UserKnn_model_conf.online:
-            with open(UserKnn_model_conf.weight_path, 'rb') as f:
+        if config['UserKnn_model_conf']['online']:
+            with open(config['UserKnn_model_conf']['weight_path'], 'rb') as f:
                 USERKNN['model'] = dill.load(f)
         else:
             USERKNN['reco_df'] = pd.read_csv(
-                UserKnn_model_conf.save_reco_df_path,
+                config['UserKnn_model_conf']['save_reco_df_path'],
                 encoding='utf-8',
             )
 
@@ -78,9 +108,49 @@ def load_popular():
     global POPULAR
     if not POPULAR['model_loaded']:
         POPULAR['reco_df'] = pd.read_csv(
-            Popular_model_conf.save_reco_df_path,
+            config['Popular_model_conf']['save_reco_df_path'],
             encoding='utf-8',
         )
+
+
+def load_als():
+    global ALS
+    if not ALS['model_loaded']:
+        ALS['reco_df'] = pd.read_csv(
+            config['ALS_model_conf']['save_reco_df_path'],
+            encoding='utf-8',
+        )
+
+
+def load_svd():
+    global SVD
+    if not SVD['model_loaded']:
+        SVD['reco_df'] = pd.read_csv(
+            config['SVD_model_conf']['save_reco_df_path'],
+            encoding='utf-8',
+        )
+
+
+def load_lightfm():
+    global LIGHTFM
+    if not LIGHTFM['model_loaded']:
+        LIGHTFM['reco_df'] = pd.read_csv(
+            config['LightFM_model_conf']['save_reco_df_path'],
+            encoding='utf-8',
+        )
+
+
+def load_ann():
+    global ANN
+    if not ANN['model_loaded']:
+        ANN['label'] = joblib.load(
+            config['ANN_model_conf']['label'],
+        )
+        ANN['distance'] = joblib.load(
+            config['ANN_model_conf']['distance'],
+        )
+        ANN['model'] = Ann(ANN['label'], ANN['distance'])
+
 
 def main():
     global interactions
@@ -88,6 +158,10 @@ def main():
     load_data()
     load_userknn()
     load_popular()
+    load_als()
+    load_svd()
+    load_lightfm()
+    load_ann()
     interactions = train
 
 
